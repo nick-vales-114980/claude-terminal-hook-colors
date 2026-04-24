@@ -1,2 +1,3 @@
+hooks/config.json
 hooks/hook-debug.log
 hooks/*.dll

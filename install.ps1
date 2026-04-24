@@ -166,13 +166,17 @@ if ($Uninstall) {
 Write-Host "`nInstalling Claude Terminal Hook Colors..." -ForegroundColor Cyan
 Write-Host "  Hooks will run from: $hooksPath" -ForegroundColor DarkGray
 
-# Configuration prompts
+# Start from default config each install so previous customizations don't leak
+$defaultsPath = Join-Path $hooksPath 'config.defaults.json'
 $configPath = Join-Path $hooksPath 'config.json'
+Copy-Item $defaultsPath $configPath -Force
 $config = Get-Content $configPath -Raw | ConvertFrom-Json
 
 Write-Host ""
 Write-Host "  Notification sounds play when Claude finishes a task or needs" -ForegroundColor DarkGray
 Write-Host "  permission, so you can tab away without missing prompts." -ForegroundColor DarkGray
+Write-Host "  Press Enter to enable (default), or type 'n' to disable." -ForegroundColor DarkGray
+
 $enableSounds = Read-Host "  Enable notification sounds? [Y/n]"
 if ($enableSounds -eq 'n') {
     $config.sounds.stop = $null
@@ -205,6 +209,7 @@ $csPath = Join-Path $hooksPath 'ConsoleApi.cs'
 $dllPath = Join-Path $hooksPath 'ConsoleApi.dll'
 if ([System.IO.File]::Exists($csPath)) {
     try {
+        if ([System.IO.File]::Exists($dllPath)) { Remove-Item $dllPath -Force }
         Add-Type -Path $csPath -OutputAssembly $dllPath -OutputType Library -ErrorAction Stop
         Write-Host "  Compiled ConsoleApi.dll" -ForegroundColor Green
     } catch {
