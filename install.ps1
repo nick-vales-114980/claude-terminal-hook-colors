@@ -3,40 +3,26 @@
     Installs or uninstalls Claude Terminal Hook Colors hooks.
 
 .DESCRIPTION
-    Copies hook scripts and sound files to the install location, then merges
-    hook configuration into Claude Code's settings.json.
+    Registers hook scripts in Claude Code's settings.json that run directly
+    from this repository. No files are copied to the user profile, avoiding
+    execution-policy issues with scripts in protected directories.
 
 .PARAMETER Uninstall
-    Remove hooks from settings.json and optionally delete installed files.
-
-.PARAMETER Force
-    Overwrite existing files without prompting.
-
-.PARAMETER InstallPath
-    Override the default install location (~/.claude/hooks/terminal-hook-colors).
+    Remove hooks from settings.json.
 
 .EXAMPLE
     pwsh ./install.ps1
     pwsh ./install.ps1 -Uninstall
-    pwsh ./install.ps1 -InstallPath "D:\my-hooks\terminal-hook-colors"
 #>
 param(
-    [switch]$Uninstall,
-    [switch]$Force,
-    [string]$InstallPath
+    [switch]$Uninstall
 )
 
 $ErrorActionPreference = 'Stop'
 $repoRoot = $PSScriptRoot
+$hooksPath = Join-Path $repoRoot 'hooks'
 $claudeDir = Join-Path $HOME '.claude'
 $settingsPath = Join-Path $claudeDir 'settings.json'
-
-if (-not $InstallPath) {
-    $InstallPath = Join-Path $claudeDir 'hooks' 'terminal-hook-colors'
-}
-
-$hooksInstallPath = Join-Path $InstallPath 'hooks'
-$soundsInstallPath = Join-Path $InstallPath 'sounds'
 
 # Marker used to identify our hooks in settings.json
 $hookMarker = 'terminal-hook-colors'
@@ -108,9 +94,9 @@ function Add-HookEntries {
         $Settings | Add-Member -NotePropertyName 'hooks' -NotePropertyValue ([PSCustomObject]@{})
     }
 
-    $submitScript = (Join-Path $hooksInstallPath 'on-prompt-submit.ps1') -replace '\\', '/'
-    $stopScript = (Join-Path $hooksInstallPath 'on-stop.ps1') -replace '\\', '/'
-    $notifyScript = (Join-Path $hooksInstallPath 'on-notification.ps1') -replace '\\', '/'
+    $submitScript = (Join-Path $hooksPath 'on-prompt-submit.ps1') -replace '\\', '/'
+    $stopScript = (Join-Path $hooksPath 'on-stop.ps1') -replace '\\', '/'
+    $notifyScript = (Join-Path $hooksPath 'on-notification.ps1') -replace '\\', '/'
 
     $hookDefs = @{
         UserPromptSubmit = @{
@@ -171,21 +157,6 @@ if ($Uninstall) {
     Write-Settings $settings
     Write-Host "  Hooks removed from settings.json" -ForegroundColor Green
 
-    if (Test-Path $InstallPath) {
-        if ($Force) {
-            Remove-Item $InstallPath -Recurse -Force
-            Write-Host "  Deleted $InstallPath" -ForegroundColor Green
-        } else {
-            $response = Read-Host "  Delete installed files at $InstallPath? [y/N]"
-            if ($response -eq 'y') {
-                Remove-Item $InstallPath -Recurse -Force
-                Write-Host "  Deleted $InstallPath" -ForegroundColor Green
-            } else {
-                Write-Host "  Files kept at $InstallPath" -ForegroundColor DarkGray
-            }
-        }
-    }
-
     Write-Host "`nUninstall complete." -ForegroundColor Green
     exit 0
 }
@@ -193,29 +164,15 @@ if ($Uninstall) {
 # --- Install ---
 
 Write-Host "`nInstalling Claude Terminal Hook Colors..." -ForegroundColor Cyan
-Write-Host "  Install path: $InstallPath" -ForegroundColor DarkGray
-
-# Copy files
-if ((Test-Path $hooksInstallPath) -and -not $Force) {
-    $response = Read-Host "  Files already exist at $InstallPath. Overwrite? [y/N]"
-    if ($response -ne 'y') {
-        Write-Host "  Aborted." -ForegroundColor Yellow
-        exit 0
-    }
-}
-
-New-Item -ItemType Directory -Path $hooksInstallPath -Force | Out-Null
-New-Item -ItemType Directory -Path $soundsInstallPath -Force | Out-Null
-
-Copy-Item (Join-Path $repoRoot 'hooks' '*') $hooksInstallPath -Force
-Copy-Item (Join-Path $repoRoot 'sounds' '*') $soundsInstallPath -Force
-Write-Host "  Copied hooks and sounds" -ForegroundColor Green
+Write-Host "  Hooks will run from: $hooksPath" -ForegroundColor DarkGray
 
 # Configuration prompts
-$configPath = Join-Path $hooksInstallPath 'config.json'
+$configPath = Join-Path $hooksPath 'config.json'
 $config = Get-Content $configPath -Raw | ConvertFrom-Json
 
 Write-Host ""
+Write-Host "  Notification sounds play when Claude finishes a task or needs" -ForegroundColor DarkGray
+Write-Host "  permission, so you can tab away without missing prompts." -ForegroundColor DarkGray
 $enableSounds = Read-Host "  Enable notification sounds? [Y/n]"
 if ($enableSounds -eq 'n') {
     $config.sounds.stop = $null
@@ -226,24 +183,26 @@ if ($enableSounds -eq 'n') {
 }
 
 Write-Host ""
-Write-Host "  Default colors (enter to keep, or provide rgb:RR/GG/BB):" -ForegroundColor DarkGray
-Write-Host "    Hex to OSC format: #4d0000 becomes rgb:4d/00/00" -ForegroundColor DarkGray
+Write-Host "  Terminal tab colors change based on Claude's current state." -ForegroundColor DarkGray
+Write-Host "  You can customize each color below, or press Enter to keep the default." -ForegroundColor DarkGray
+Write-Host "  Format: rgb:RR/GG/BB (e.g. #4d0000 becomes rgb:4d/00/00)" -ForegroundColor DarkGray
+Write-Host ""
 
-$customProcessing = Read-Host "  Processing color [dark red: $($config.colors.processing)]"
+$customProcessing = Read-Host "  Processing color (shown while Claude is working) [dark red: $($config.colors.processing)]"
 if ($customProcessing) { $config.colors.processing = $customProcessing }
 
-$customStopped = Read-Host "  Stopped color    [dark green: $($config.colors.stopped)]"
+$customStopped = Read-Host "  Stopped color (shown when Claude finishes, resets after 15s) [dark green: $($config.colors.stopped)]"
 if ($customStopped) { $config.colors.stopped = $customStopped }
 
-$customPermission = Read-Host "  Permission color [purple: $($config.colors.permission)]"
+$customPermission = Read-Host "  Permission color (shown when Claude needs your approval) [purple: $($config.colors.permission)]"
 if ($customPermission) { $config.colors.permission = $customPermission }
 
 $config | ConvertTo-Json -Depth 10 | Set-Content $configPath -Encoding UTF8
 Write-Host "  Config saved" -ForegroundColor Green
 
 # Compile ConsoleApi DLL for faster hook startup
-$csPath = Join-Path $hooksInstallPath 'ConsoleApi.cs'
-$dllPath = Join-Path $hooksInstallPath 'ConsoleApi.dll'
+$csPath = Join-Path $hooksPath 'ConsoleApi.cs'
+$dllPath = Join-Path $hooksPath 'ConsoleApi.dll'
 if ([System.IO.File]::Exists($csPath)) {
     try {
         Add-Type -Path $csPath -OutputAssembly $dllPath -OutputType Library -ErrorAction Stop
@@ -263,11 +222,13 @@ Write-Host "  Hooks added to settings.json" -ForegroundColor Green
 Write-Host "`nInstall complete!" -ForegroundColor Green
 Write-Host @"
 
+  Hooks run directly from this repo. Do not move or delete it.
+
   Colors:
     Processing  = dark red ($($settings.hooks ? 'active' : 'check settings'))
     Stopped     = dark green (resets after 15s)
     Permission  = purple
 
-  Customize:  Edit $hooksInstallPath\config.json
+  Customize:  Edit $hooksPath\config.json
   Uninstall:  pwsh $repoRoot\install.ps1 -Uninstall
 "@ -ForegroundColor DarkGray
