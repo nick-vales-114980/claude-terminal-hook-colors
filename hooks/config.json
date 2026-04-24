@@ -1,0 +1,13 @@
+{
+  "colors": {
+    "processing": "rgb:4d/00/00",
+    "stopped": "rgb:00/4d/00",
+    "permission": "rgb:4a/00/80"
+  },
+  "sounds": {
+    "stop": "stop.wav",
+    "notification": "notification.wav"
+  },
+  "stopResetDelaySeconds": 15,
+  "debug": false
+}
