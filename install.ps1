@@ -222,8 +222,8 @@ function Write-PaletteStateLines {
     param($Palette)
     $rows = @(
         @{ Label = 'Processing'; Hex = $Palette.processing; Meaning = 'Claude is working' },
-        @{ Label = 'Stopped';    Hex = $Palette.stopped;    Meaning = 'Claude finished, needs your input' },
-        @{ Label = 'Permission'; Hex = $Palette.permission; Meaning = 'Claude is waiting for approval' }
+        @{ Label = 'Permission'; Hex = $Palette.permission; Meaning = 'Claude is waiting for approval' },
+        @{ Label = 'Stopped';    Hex = $Palette.stopped;    Meaning = 'Claude finished, needs your input' }
     )
     foreach ($row in $rows) {
         $label = $row.Label.PadRight(11)
