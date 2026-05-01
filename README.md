@@ -65,13 +65,14 @@ Each option only touches what it needs to — your other config (e.g. `stopReset
 Useful for scripted setup or CI:
 
 ```powershell
-pwsh ./install.ps1 -Profile ocean -Sounds off
-pwsh ./install.ps1 -Profile sunset
+pwsh ./install.ps1 -Palette ocean -Sounds off
+pwsh ./install.ps1 -Palette sunset
 pwsh ./install.ps1 -Sounds on
-pwsh ./install.ps1 -Reconfigure   # force the menu even on fresh install
 ```
 
-`-Profile` accepts `classic`, `ocean`, `sunset`, `forest`, or `mono`. `-Sounds` accepts `on` or `off`.
+`-Palette` accepts `classic`, `ocean`, `sunset`, `forest`, or `mono`. `-Sounds` accepts `on` or `off`.
+
+These flags only update `config.json`. They do **not** recompile the DLL or refresh the hook entries in `settings.json` — if you've moved the repo, run the installer interactively and pick option 4 (Reinstall hooks) instead.
 
 ## Uninstall
 

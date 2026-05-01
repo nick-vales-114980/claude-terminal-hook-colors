@@ -13,28 +13,24 @@
 .PARAMETER Uninstall
     Remove hooks from settings.json.
 
-.PARAMETER Profile
+.PARAMETER Palette
     Apply a named palette non-interactively. One of:
     classic, ocean, sunset, forest, mono.
 
 .PARAMETER Sounds
     Set sound state non-interactively. One of: on, off.
 
-.PARAMETER Reconfigure
-    Force the reconfigure menu even if no install is detected.
-
 .EXAMPLE
     pwsh ./install.ps1
-    pwsh ./install.ps1 -Profile ocean -Sounds off
+    pwsh ./install.ps1 -Palette ocean -Sounds off
     pwsh ./install.ps1 -Uninstall
 #>
 param(
     [switch]$Uninstall,
     [ValidateSet('classic', 'ocean', 'sunset', 'forest', 'mono')]
-    [string]$Profile,
+    [string]$Palette,
     [ValidateSet('on', 'off')]
-    [string]$Sounds,
-    [switch]$Reconfigure
+    [string]$Sounds
 )
 
 $ErrorActionPreference = 'Stop'
@@ -285,9 +281,11 @@ function Set-SoundsOnConfig {
         $Config.sounds.stop = $null
         $Config.sounds.notification = $null
     } else {
+        # Only restore filenames that are currently null/empty so we don't
+        # clobber user-customized .wav paths when re-enabling.
         $defaults = Get-Defaults
-        $Config.sounds.stop = $defaults.sounds.stop
-        $Config.sounds.notification = $defaults.sounds.notification
+        if (-not $Config.sounds.stop)         { $Config.sounds.stop = $defaults.sounds.stop }
+        if (-not $Config.sounds.notification) { $Config.sounds.notification = $defaults.sounds.notification }
     }
 }
 
@@ -354,7 +352,7 @@ function Invoke-Uninstall {
 }
 
 function Invoke-FreshInstall {
-    param([string]$ProfileChoice, [string]$SoundsChoice)
+    param([string]$PaletteChoice, [string]$SoundsChoice)
 
     Write-Host "`nInstalling Claude Terminal Hook Colors..." -ForegroundColor Cyan
     Write-Host "  Hooks will run from: $hooksPath" -ForegroundColor DarkGray
@@ -362,10 +360,10 @@ function Invoke-FreshInstall {
     Copy-Item $defaultsPath $configPath -Force
     $config = Get-Content $configPath -Raw | ConvertFrom-Json
 
-    # Profile
-    if ($ProfileChoice) {
-        Set-PaletteOnConfig -Config $config -ProfileKey $ProfileChoice
-        Write-Host "  Profile: $ProfileChoice" -ForegroundColor DarkGray
+    # Palette
+    if ($PaletteChoice) {
+        Set-PaletteOnConfig -Config $config -ProfileKey $PaletteChoice
+        Write-Host "  Profile: $PaletteChoice" -ForegroundColor DarkGray
     } else {
         $key = Show-PalettePicker -Palettes $config.palettes -CurrentKey $null
         $custom = $null
@@ -398,7 +396,7 @@ function Invoke-FreshInstall {
 }
 
 function Invoke-Reconfigure {
-    param([string]$ProfileChoice, [string]$SoundsChoice)
+    param([string]$PaletteChoice, [string]$SoundsChoice)
 
     $config = Get-Content $configPath -Raw | ConvertFrom-Json
 
@@ -408,16 +406,17 @@ function Invoke-Reconfigure {
     }
 
     # Non-interactive path: apply flags silently.
-    if ($ProfileChoice -or $SoundsChoice) {
-        if ($ProfileChoice) {
-            Set-PaletteOnConfig -Config $config -ProfileKey $ProfileChoice
-            Write-Host "  Profile changed to: $ProfileChoice" -ForegroundColor Green
+    if ($PaletteChoice -or $SoundsChoice) {
+        if ($PaletteChoice) {
+            Set-PaletteOnConfig -Config $config -ProfileKey $PaletteChoice
+            Write-Host "  Profile changed to: $PaletteChoice" -ForegroundColor Green
         }
         if ($SoundsChoice) {
             Set-SoundsOnConfig -Config $config -State $SoundsChoice
             Write-Host "  Sounds set to: $SoundsChoice" -ForegroundColor Green
         }
         Save-Config $config
+        Write-InstallSummary -Config $config -Header 'Reconfigure complete.'
         return
     }
 
@@ -431,6 +430,7 @@ function Invoke-Reconfigure {
             }
             Set-PaletteOnConfig -Config $config -ProfileKey $key -CustomColors $custom
             Save-Config $config
+            Write-InstallSummary -Config $config -Header 'Reconfigure complete.'
         }
         2 {
             $current = Get-CurrentSoundState $config
@@ -438,6 +438,7 @@ function Invoke-Reconfigure {
             Set-SoundsOnConfig -Config $config -State $new
             Write-Host "  Sounds $new" -ForegroundColor Green
             Save-Config $config
+            Write-InstallSummary -Config $config -Header 'Reconfigure complete.'
         }
         3 {
             $key = Show-PalettePicker -Palettes $config.palettes -CurrentKey $config.profile
@@ -449,6 +450,7 @@ function Invoke-Reconfigure {
             $state = Read-SoundChoice -CurrentState (Get-CurrentSoundState $config)
             Set-SoundsOnConfig -Config $config -State $state
             Save-Config $config
+            Write-InstallSummary -Config $config -Header 'Reconfigure complete.'
         }
         4 {
             Build-ConsoleApiDll
@@ -470,11 +472,11 @@ function Invoke-Reconfigure {
 }
 
 function Write-InstallSummary {
-    param($Config)
+    param($Config, [string]$Header = 'Install complete!')
     $profileLabel = if ($Config.profile) { $Config.profile } else { 'classic' }
     $soundLabel = Get-CurrentSoundState $Config
 
-    Write-Host "`nInstall complete!" -ForegroundColor Green
+    Write-Host "`n$Header" -ForegroundColor Green
     Write-Host @"
 
   Hooks run directly from this repo. Do not move or delete it.
@@ -501,8 +503,8 @@ if ($Uninstall) {
 
 $alreadyInstalled = (Test-Path $configPath) -and (Test-HooksRegistered)
 
-if ($alreadyInstalled -or $Reconfigure) {
-    Invoke-Reconfigure -ProfileChoice $Profile -SoundsChoice $Sounds
+if ($alreadyInstalled) {
+    Invoke-Reconfigure -PaletteChoice $Palette -SoundsChoice $Sounds
 } else {
-    Invoke-FreshInstall -ProfileChoice $Profile -SoundsChoice $Sounds
+    Invoke-FreshInstall -PaletteChoice $Palette -SoundsChoice $Sounds
 }
