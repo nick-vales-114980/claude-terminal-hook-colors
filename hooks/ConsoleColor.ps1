@@ -59,12 +59,16 @@ function Find-TargetConsolePid {
     return $null
 }
 
-function Write-OscToConsole {
-    param([string]$Payload)
+function Get-TargetConsolePid {
     if (-not $script:CachedTargetPid) {
         $script:CachedTargetPid = Find-TargetConsolePid
     }
-    $targetPid = $script:CachedTargetPid
+    return $script:CachedTargetPid
+}
+
+function Write-OscToConsole {
+    param([string]$Payload)
+    $targetPid = Get-TargetConsolePid
     if (-not $targetPid) { return $false }
 
     [void][ConsoleApi]::FreeConsole()
@@ -97,13 +101,6 @@ function Reset-TerminalColor {
     [void](Write-OscToConsole "$($script:Esc)]111$($script:Bel)$($script:Esc)]104;264$($script:Bel)")
 }
 
-function Get-TargetConsolePid {
-    if (-not $script:CachedTargetPid) {
-        $script:CachedTargetPid = Find-TargetConsolePid
-    }
-    return $script:CachedTargetPid
-}
-
 function Get-ResetCancelEventName {
     $targetPid = Get-TargetConsolePid
     if (-not $targetPid) { return $null }
@@ -132,7 +129,7 @@ function Wait-ColorResetCancellable {
     }
 }
 
-function Signal-ColorResetCancel {
+function Send-ColorResetCancel {
     $name = Get-ResetCancelEventName
     if (-not $name) {
         Write-HookDebug "[signal] No target PID; skipping signal"
